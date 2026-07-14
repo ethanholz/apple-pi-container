@@ -3,6 +3,9 @@
 A simple tool for using an Apple [container](https://github.com/apple/container) to sandbox shell-based tool calls.
 Based off the [example](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/examples/extensions/gondolin) in Pi for using [gondolin](https://github.com/earendil-works/gondolin).
 
+## Ethos
+Configuration of `pi` should happen on the host system. File manipulation should happen in a container. It should be easy to use and fast.
+
 ## TODOs
 - [ ] Add better toggle UX via Pi slash command
 - [ ] Make project configuration easier in `.pi` directory
