@@ -1,0 +1,10 @@
+{
+	"name": "apple-pi-container",
+	"version": "0.0.1",
+	"type": "module",
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	}
+}
