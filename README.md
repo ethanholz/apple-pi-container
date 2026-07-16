@@ -6,6 +6,10 @@ Based off the [example](https://github.com/earendil-works/pi/tree/main/packages/
 ## Ethos
 Configuration of `pi` should happen on the host system. File manipulation should happen in a container. It should be easy to use and fast.
 
+## Usage
+For right now, the best way to use this extension is to put it in a folder somewhere and then run:
+`pi -e path/to/apple-pi-container --apple-container-image ubuntu:latest`
+
 ## TODOs
 - [ ] Add better toggle UX via Pi slash command
 - [ ] Make project configuration easier in `.pi` directory
