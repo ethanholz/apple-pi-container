@@ -8,7 +8,7 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import type {
@@ -17,6 +17,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
   type BashOperations,
+  CONFIG_DIR_NAME,
   createBashTool,
   createEditTool,
   createFindTool,
@@ -39,7 +40,15 @@ import {
 
 const GUEST_WORKSPACE = "/workspace";
 const DEFAULT_IMAGE = "docker.io/library/ubuntu:24.04";
+const DEFAULT_ENABLED = false;
+const CONFIG_FILE = "apple-container.json";
+const DISPLAY_NAME = "🍎 π";
 const DEFAULT_GREP_LIMIT = 100;
+
+interface AppleContainerConfig {
+  image?: string;
+  enabled?: boolean;
+}
 
 type TextToolResult<TDetails> = {
   content: Array<{ type: "text"; text: string }>;
@@ -57,6 +66,23 @@ type ExecOptions = {
 };
 
 type ExecResult = { stdout: Buffer; stderr: Buffer; exitCode: number | null };
+
+function readConfig(filePath: string): AppleContainerConfig {
+  if (!existsSync(filePath)) return {};
+  const value: unknown = JSON.parse(readFileSync(filePath, "utf8"));
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`${filePath} must contain a JSON object`);
+
+  const { image, enabled } = value as Record<string, unknown>;
+  if (image !== undefined && (typeof image !== "string" || !image.trim()))
+    throw new Error(`${filePath}: image must be a non-empty string`);
+  if (enabled !== undefined && typeof enabled !== "boolean")
+    throw new Error(`${filePath}: enabled must be a boolean`);
+  return {
+    image: typeof image === "string" ? image : undefined,
+    enabled: typeof enabled === "boolean" ? enabled : undefined,
+  };
+}
 
 function run(
   command: string,
@@ -498,7 +524,7 @@ function createContainerBashOps(
 
 export default function (pi: ExtensionAPI) {
   pi.registerFlag("apple-container-image", {
-    description: `Apple Container image (default: ${DEFAULT_IMAGE})`,
+    description: `${DISPLAY_NAME} image (default: ${DEFAULT_IMAGE})`,
     type: "string",
   });
 
@@ -513,19 +539,37 @@ export default function (pi: ExtensionAPI) {
   let container: AppleContainer | undefined;
   let starting: Promise<AppleContainer> | undefined;
   let shellPath = "/bin/sh";
+  let configuredImage = DEFAULT_IMAGE;
   let image = DEFAULT_IMAGE;
+  let enabled = DEFAULT_ENABLED;
+
+  function defaultImage(): string {
+    return (
+      (pi.getFlag("apple-container-image") as string | undefined) ||
+      configuredImage
+    );
+  }
+
+  function showDisabledStatus(ctx: ExtensionContext): void {
+    ctx.ui.setStatus(
+      "apple-container",
+      ctx.ui.theme.fg(
+        "muted",
+        `${DISPLAY_NAME}: disabled (${defaultImage()})`,
+      ),
+    );
+  }
 
   async function startContainer(
     ctx?: ExtensionContext,
+    imageOverride?: string,
   ): Promise<AppleContainer> {
     if (process.platform !== "darwin")
       throw new Error("Apple Container requires macOS");
-    image =
-      (pi.getFlag("apple-container-image") as string | undefined) ||
-      DEFAULT_IMAGE;
+    image = imageOverride || defaultImage();
     ctx?.ui.setStatus(
       "apple-container",
-      ctx.ui.theme.fg("accent", "Apple Container: starting"),
+      ctx.ui.theme.fg("accent", `${DISPLAY_NAME}: starting (${image})`),
     );
     const id = `pi-${randomUUID().slice(0, 12)}`;
     try {
@@ -556,15 +600,9 @@ export default function (pi: ExtensionAPI) {
       container = created;
       ctx?.ui.setStatus(
         "apple-container",
-        ctx.ui.theme.fg(
-          "accent",
-          `Apple Container: ${id} (${GUEST_WORKSPACE})`,
-        ),
+        ctx.ui.theme.fg("accent", `${DISPLAY_NAME}: ${id} (${image})`),
       );
-      ctx?.ui.notify(
-        `Apple Container ready. ${localCwd} is mounted at ${GUEST_WORKSPACE}.`,
-        "info",
-      );
+      ctx?.ui.notify(`${DISPLAY_NAME} ready: ${id} (${image}).`, "info");
       return created;
     } catch (error) {
       await run("container", ["delete", "--force", id], { allowFailure: true });
@@ -575,45 +613,106 @@ export default function (pi: ExtensionAPI) {
 
   async function ensureContainer(
     ctx?: ExtensionContext,
+    imageOverride?: string,
   ): Promise<AppleContainer> {
     if (container) return container;
     if (!starting)
-      starting = startContainer(ctx).finally(() => (starting = undefined));
+      starting = startContainer(ctx, imageOverride).finally(
+        () => (starting = undefined),
+      );
     return starting;
   }
 
-  pi.on("session_start", async (_event, ctx) => {
-    await ensureContainer(ctx);
-  });
-
-  pi.on("session_shutdown", async (_event, ctx) => {
+  async function stopContainer(ctx?: ExtensionContext): Promise<void> {
     const active = container ?? (await starting?.catch(() => undefined));
     container = undefined;
     starting = undefined;
     if (!active) return;
-    ctx.ui.setStatus(
+    ctx?.ui.setStatus(
       "apple-container",
-      ctx.ui.theme.fg("muted", "Apple Container: stopping"),
+      ctx.ui.theme.fg("muted", `${DISPLAY_NAME}: stopping`),
     );
     try {
       await active.close();
     } finally {
-      ctx.ui.setStatus("apple-container", undefined);
+      ctx?.ui.setStatus("apple-container", undefined);
     }
+  }
+
+  pi.on("session_start", async (_event, ctx) => {
+    const globalConfig = readConfig(
+      path.join(homedir(), ".pi", "agent", CONFIG_FILE),
+    );
+    const projectConfig = ctx.isProjectTrusted()
+      ? readConfig(path.join(ctx.cwd, CONFIG_DIR_NAME, CONFIG_FILE))
+      : {};
+    configuredImage =
+      projectConfig.image ?? globalConfig.image ?? DEFAULT_IMAGE;
+    enabled =
+      projectConfig.enabled ?? globalConfig.enabled ?? DEFAULT_ENABLED;
+    if (enabled) await ensureContainer(ctx);
+    else showDisabledStatus(ctx);
+  });
+
+  pi.on("session_shutdown", async (_event, ctx) => {
+    await stopContainer(ctx);
   });
 
   pi.registerCommand("apple-container", {
-    description: "Show Apple Container status",
-    handler: async (_args, ctx) => {
-      const active = await ensureContainer(ctx);
+    description: `Toggle ${DISPLAY_NAME} routing (on [image], off, status)`,
+    handler: async (args, ctx) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = parts[0]?.toLowerCase() ?? "";
+      const imageOverride = parts[1];
+      const valid =
+        (!action && parts.length === 0) ||
+        (action === "on" && parts.length <= 2) ||
+        ((action === "off" || action === "status") && parts.length === 1);
+      if (!valid) {
+        ctx.ui.notify(
+          "Usage: /apple-container [on [image]|off|status]",
+          "warning",
+        );
+        return;
+      }
+      if (action === "status") {
+        ctx.ui.notify(
+          enabled && container
+            ? `${DISPLAY_NAME} enabled: ${container.id} (${image})`
+            : enabled
+              ? `${DISPLAY_NAME} starting (${image})`
+              : `${DISPLAY_NAME} disabled (${defaultImage()})`,
+          "info",
+        );
+        return;
+      }
+
+      const nextEnabled = action ? action === "on" : !enabled;
+      if (nextEnabled === enabled) {
+        ctx.ui.notify(
+          `${DISPLAY_NAME} already ${enabled ? "enabled" : "disabled"}.`,
+          "info",
+        );
+        return;
+      }
+
+      await ctx.waitForIdle();
+      enabled = nextEnabled;
+      if (enabled) {
+        try {
+          await ensureContainer(ctx, imageOverride);
+        } catch (error) {
+          enabled = false;
+          showDisabledStatus(ctx);
+          throw error;
+        }
+        return;
+      }
+
+      await stopContainer(ctx);
+      showDisabledStatus(ctx);
       ctx.ui.notify(
-        [
-          `Apple Container: ${active.id}`,
-          `Image: ${image}`,
-          `Host workspace: ${localCwd}`,
-          `Guest workspace: ${GUEST_WORKSPACE}`,
-          `Shell: ${shellPath}`,
-        ].join("\n"),
+        `${DISPLAY_NAME} disabled. Tools now run on the host.`,
         "info",
       );
     },
@@ -622,6 +721,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...localRead,
     async execute(id, params, signal, onUpdate, ctx) {
+      if (!enabled) return localRead.execute(id, params, signal, onUpdate);
       const active = await ensureContainer(ctx);
       return createReadTool(GUEST_WORKSPACE, {
         operations: createContainerReadOps(active, localCwd),
@@ -631,6 +731,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...localWrite,
     async execute(id, params, signal, onUpdate, ctx) {
+      if (!enabled) return localWrite.execute(id, params, signal, onUpdate);
       const active = await ensureContainer(ctx);
       return createWriteTool(GUEST_WORKSPACE, {
         operations: createContainerWriteOps(active, localCwd),
@@ -640,6 +741,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...localEdit,
     async execute(id, params, signal, onUpdate, ctx) {
+      if (!enabled) return localEdit.execute(id, params, signal, onUpdate);
       const active = await ensureContainer(ctx);
       return createEditTool(GUEST_WORKSPACE, {
         operations: createContainerEditOps(active, localCwd),
@@ -649,6 +751,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...localBash,
     async execute(id, params, signal, onUpdate, ctx) {
+      if (!enabled) return localBash.execute(id, params, signal, onUpdate);
       const active = await ensureContainer(ctx);
       return createBashTool(GUEST_WORKSPACE, {
         operations: createContainerBashOps(active, localCwd, shellPath),
@@ -658,6 +761,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...localLs,
     async execute(id, params, signal, onUpdate, ctx) {
+      if (!enabled) return localLs.execute(id, params, signal, onUpdate);
       const active = await ensureContainer(ctx);
       return createLsTool(GUEST_WORKSPACE, {
         operations: createContainerLsOps(active, localCwd),
@@ -667,6 +771,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...localFind,
     async execute(id, params, signal, onUpdate, ctx) {
+      if (!enabled) return localFind.execute(id, params, signal, onUpdate);
       const active = await ensureContainer(ctx);
       return createFindTool(GUEST_WORKSPACE, {
         operations: createContainerFindOps(active, localCwd),
@@ -675,7 +780,8 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerTool({
     ...localGrep,
-    async execute(_id, params, signal, _onUpdate, ctx) {
+    async execute(id, params, signal, onUpdate, ctx) {
+      if (!enabled) return localGrep.execute(id, params, signal, onUpdate);
       return executeContainerGrep(
         await ensureContainer(ctx),
         localCwd,
@@ -686,11 +792,13 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("user_bash", async (_event, ctx) => {
+    if (!enabled) return;
     const active = await ensureContainer(ctx);
     return { operations: createContainerBashOps(active, localCwd, shellPath) };
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
+    if (!enabled) return;
     await ensureContainer(ctx);
     const localLine = `Current working directory: ${localCwd}`;
     const guestLine = `Current working directory: ${GUEST_WORKSPACE} (Apple Container; host workspace mounted from ${localCwd})`;

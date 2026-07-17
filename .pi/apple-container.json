@@ -1,0 +1,4 @@
+{
+  "image": "ubuntu:24.04",
+  "enabled": false
+}

@@ -10,8 +10,52 @@ Configuration of `pi` should happen on the host system. File manipulation should
 For right now, the best way to use this extension is to put it in a folder somewhere and then run:
 `pi -e path/to/apple-pi-container --apple-container-image ubuntu:latest`
 
+Container routing starts disabled. Use `/apple-container` to toggle between the
+host and container, or `/apple-container on [image]|off|status` for an explicit
+action. For example, `/apple-container on ubuntu:24.04` starts that image.
+
+### JSON configuration
+
+Configuration is optional. Create either of these files:
+
+- `~/.pi/agent/apple-container.json` for defaults shared by all projects
+- `.pi/apple-container.json` for defaults belonging to the current project
+
+```json
+{
+  "image": "ubuntu:24.04",
+  "enabled": true
+}
+```
+
+| Setting | Type | Code default | Description |
+|---------|------|--------------|-------------|
+| `image` | string | `docker.io/library/ubuntu:24.04` | Image used when starting the container |
+| `enabled` | boolean | `false` | Start container routing when the session launches |
+
+Both settings are optional. For example, this keeps routing disabled while
+changing the image used by the next `/apple-container on`:
+
+```json
+{
+  "image": "ghcr.io/prefix-dev/pixi:latest"
+}
+```
+
+Project configuration overrides global configuration one setting at a time and
+is only read for trusted projects. Image precedence is:
+
+1. Image passed to `/apple-container on <image>`
+2. `--apple-container-image` CLI flag
+3. Project JSON configuration
+4. Global JSON configuration
+5. Code default
+
+Slash commands only change the current session; they never modify configuration
+files. Invalid setting types are reported instead of silently ignored.
+
 ## TODOs
-- [ ] Add better toggle UX via Pi slash command
-- [ ] Make project configuration easier in `.pi` directory
+- [x] Add better toggle UX via Pi slash command
+- [x] Make project configuration easier in `.pi` directory
 - [ ] Support devcontainers
 - [ ] Make using project local dependency caching easier for Linux guest
