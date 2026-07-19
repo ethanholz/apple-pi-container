@@ -24,7 +24,13 @@ Configuration is optional. Create either of these files:
 ```json
 {
   "image": "ubuntu:24.04",
-  "enabled": true
+  "enabled": true,
+  "volumes": [
+    {
+      "source": "my-project-pixi",
+      "target": "/workspace/.pixi"
+    }
+  ]
 }
 ```
 
@@ -32,8 +38,9 @@ Configuration is optional. Create either of these files:
 |---------|------|--------------|-------------|
 | `image` | string | `docker.io/library/ubuntu:24.04` | Image used when starting the container |
 | `enabled` | boolean | `false` | Start container routing when the session launches |
+| `volumes` | array | `[]` | Named volumes to mount in the container |
 
-Both settings are optional. For example, this keeps routing disabled while
+All settings are optional. For example, this keeps routing disabled while
 changing the image used by the next `/apple-container on`:
 
 ```json
@@ -43,7 +50,8 @@ changing the image used by the next `/apple-container on`:
 ```
 
 Project configuration overrides global configuration one setting at a time and
-is only read for trusted projects. Image precedence is:
+is only read for trusted projects. A project `volumes` array replaces the global
+array rather than merging with it. Image precedence is:
 
 1. Image passed to `/apple-container on <image>`
 2. `--apple-container-image` CLI flag
@@ -54,8 +62,35 @@ is only read for trusted projects. Image precedence is:
 Slash commands only change the current session; they never modify configuration
 files. Invalid setting types are reported instead of silently ignored.
 
+### Named volumes
+
+Create named volumes with Apple Container, then list their source name and
+absolute guest target in the JSON configuration:
+
+```sh
+container volume create my-project-pixi
+```
+
+```json
+{
+  "volumes": [
+    {
+      "source": "my-project-pixi",
+      "target": "/workspace/.pixi"
+    },
+    {
+      "source": "shared-data",
+      "target": "/data",
+      "readonly": true
+    }
+  ]
+}
+```
+
+The extension only mounts configured volumes; it does not manage their lifecycle.
+
 ## TODOs
 - [x] Add better toggle UX via Pi slash command
 - [x] Make project configuration easier in `.pi` directory
 - [ ] Support devcontainers
-- [ ] Make using project local dependency caching easier for Linux guest
+- [x] Make using project local dependency caching easier for Linux guest

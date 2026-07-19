@@ -45,9 +45,30 @@ const CONFIG_FILE = "apple-container.json";
 const DISPLAY_NAME = "🍎 π";
 const DEFAULT_GREP_LIMIT = 100;
 
+interface VolumeConfig {
+  source: string;
+  target: string;
+  readonly?: boolean;
+}
+
 interface AppleContainerConfig {
   image?: string;
   enabled?: boolean;
+  volumes?: VolumeConfig[];
+}
+
+function isVolumeConfig(value: unknown): value is VolumeConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const { source, target, readonly } = value as Record<string, unknown>;
+  return (
+    typeof source === "string" &&
+    !!source.trim() &&
+    !source.includes(",") &&
+    typeof target === "string" &&
+    path.posix.isAbsolute(target) &&
+    !target.includes(",") &&
+    (readonly === undefined || typeof readonly === "boolean")
+  );
 }
 
 type TextToolResult<TDetails> = {
@@ -73,14 +94,22 @@ function readConfig(filePath: string): AppleContainerConfig {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error(`${filePath} must contain a JSON object`);
 
-  const { image, enabled } = value as Record<string, unknown>;
+  const { image, enabled, volumes } = value as Record<string, unknown>;
   if (image !== undefined && (typeof image !== "string" || !image.trim()))
     throw new Error(`${filePath}: image must be a non-empty string`);
   if (enabled !== undefined && typeof enabled !== "boolean")
     throw new Error(`${filePath}: enabled must be a boolean`);
+  if (
+    volumes !== undefined &&
+    (!Array.isArray(volumes) || !volumes.every(isVolumeConfig))
+  )
+    throw new Error(
+      `${filePath}: volumes must contain a source, an absolute target, and an optional boolean readonly`,
+    );
   return {
     image: typeof image === "string" ? image : undefined,
     enabled: typeof enabled === "boolean" ? enabled : undefined,
+    volumes: volumes as VolumeConfig[] | undefined,
   };
 }
 
@@ -540,6 +569,7 @@ export default function (pi: ExtensionAPI) {
   let starting: Promise<AppleContainer> | undefined;
   let shellPath = "/bin/sh";
   let configuredImage = DEFAULT_IMAGE;
+  let configuredVolumes: VolumeConfig[] = [];
   let image = DEFAULT_IMAGE;
   let enabled = DEFAULT_ENABLED;
 
@@ -553,10 +583,7 @@ export default function (pi: ExtensionAPI) {
   function showDisabledStatus(ctx: ExtensionContext): void {
     ctx.ui.setStatus(
       "apple-container",
-      ctx.ui.theme.fg(
-        "muted",
-        `${DISPLAY_NAME}: disabled (${defaultImage()})`,
-      ),
+      ctx.ui.theme.fg("muted", `${DISPLAY_NAME}: disabled (${defaultImage()})`),
     );
   }
 
@@ -586,6 +613,12 @@ export default function (pi: ExtensionAPI) {
         args.push(
           "--mount",
           `type=bind,source=${skillsDir},target=${toPosix(skillsDir)},readonly`,
+        );
+      }
+      for (const volume of configuredVolumes) {
+        args.push(
+          "--mount",
+          `type=volume,source=${volume.source},target=${volume.target}${volume.readonly ? ",readonly" : ""}`,
         );
       }
       args.push("--workdir", GUEST_WORKSPACE, image, "sleep", "infinity");
@@ -648,8 +681,8 @@ export default function (pi: ExtensionAPI) {
       : {};
     configuredImage =
       projectConfig.image ?? globalConfig.image ?? DEFAULT_IMAGE;
-    enabled =
-      projectConfig.enabled ?? globalConfig.enabled ?? DEFAULT_ENABLED;
+    configuredVolumes = projectConfig.volumes ?? globalConfig.volumes ?? [];
+    enabled = projectConfig.enabled ?? globalConfig.enabled ?? DEFAULT_ENABLED;
     if (enabled) await ensureContainer(ctx);
     else showDisabledStatus(ctx);
   });
