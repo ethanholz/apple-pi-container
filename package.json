@@ -2,9 +2,20 @@
 	"name": "apple-pi-container",
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"scripts": {
+		"typecheck": "tsc"
+	},
 	"pi": {
 		"extensions": [
 			"./index.ts"
 		]
+	},
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "0.80.10",
+		"@types/node": "24.12.0",
+		"typescript": "5.9.3"
 	}
 }
