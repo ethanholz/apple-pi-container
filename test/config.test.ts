@@ -4,6 +4,38 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, test } from "node:test";
 import { readConfig } from "../index.ts";
+import fs from "node:fs";
+
+const baseExample = `
+{
+  "image": "ubuntu:24.04",
+  "enabled": true,
+  "volumes": [
+    {
+      "source": "my-project-pixi",
+      "target": "/workspace/.pixi"
+    }
+  ]
+}
+`;
+
+const volumeExample = `
+{
+  "image": "ubuntu:24.04",
+  "enabled": true,
+  "volumes": [
+    {
+      "source": "my-project-pixi",
+      "target": "/workspace/.pixi",
+      "readonly": true
+    },
+    {
+      "source": "my-other-pixi",
+      "target": "/workspace/other"
+    }
+  ]
+}
+`;
 
 describe("configuration", () => {
   test("returns an empty configuration when the file does not exist", () => {
@@ -11,9 +43,34 @@ describe("configuration", () => {
 
     assert.deepEqual(readConfig(filePath), {});
   });
-  test.todo("reads image, enabled, and named volume settings");
-  test.todo("accepts writable and read-only named volumes");
-  test.todo("rejects a volumes setting that is not an array");
+  test("reads image, enabled, and named volume settings", () => {
+    const filePath = path.join(tmpdir(), `${randomUUID()}.json`);
+    fs.writeFileSync(filePath, baseExample);
+
+    assert.deepEqual(readConfig(filePath), {
+      image: "ubuntu:24.04",
+      enabled: true,
+      volumes: [
+        {
+          source: "my-project-pixi",
+          target: "/workspace/.pixi",
+          readonly: false,
+        },
+      ],
+    });
+  });
+  test("accepts writable and read-only named volumes", () => {
+    const filePath = path.join(tmpdir(), `${randomUUID()}.json`);
+    fs.writeFileSync(filePath, volumeExample);
+
+    const out = readConfig(filePath);
+    const volumes = out.volumes;
+    assert.notEqual(volumes, undefined);
+    assert.deepEqual(volumes, [
+      { source: "my-project-pixi", target: "/workspace/.pixi", readonly: true },
+      { source: "my-other-pixi", target: "/workspace/other", readonly: false },
+    ]);
+  });
   test.todo("rejects volume entries without a source");
   test.todo("rejects volume entries with a relative target");
   test.todo("rejects commas in volume sources and targets");

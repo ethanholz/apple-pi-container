@@ -48,6 +48,12 @@ const DEFAULT_GREP_LIMIT = 100;
 interface VolumeConfig {
   source: string;
   target: string;
+  readonly: boolean;
+}
+
+interface ParsedVolumeConfig {
+  source: string;
+  target: string;
   readonly?: boolean;
 }
 
@@ -57,7 +63,7 @@ interface AppleContainerConfig {
   volumes?: VolumeConfig[];
 }
 
-function isVolumeConfig(value: unknown): value is VolumeConfig {
+function isVolumeConfig(value: unknown): value is ParsedVolumeConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const { source, target, readonly } = value as Record<string, unknown>;
   return (
@@ -109,7 +115,10 @@ export function readConfig(filePath: string): AppleContainerConfig {
   return {
     image: typeof image === "string" ? image : undefined,
     enabled: typeof enabled === "boolean" ? enabled : undefined,
-    volumes: volumes as VolumeConfig[] | undefined,
+    volumes: (volumes as ParsedVolumeConfig[] | undefined)?.map((volume) => ({
+      ...volume,
+      readonly: volume.readonly ?? false,
+    })),
   };
 }
 
