@@ -6,7 +6,9 @@
 		"node": ">=22.19.0"
 	},
 	"scripts": {
-		"typecheck": "tsc"
+		"typecheck": "tsc",
+		"test": "node --test test/*.test.ts",
+		"check": "npm run typecheck && npm test"
 	},
 	"pi": {
 		"extensions": [

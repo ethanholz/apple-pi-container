@@ -88,7 +88,7 @@ type ExecOptions = {
 
 type ExecResult = { stdout: Buffer; stderr: Buffer; exitCode: number | null };
 
-function readConfig(filePath: string): AppleContainerConfig {
+export function readConfig(filePath: string): AppleContainerConfig {
   if (!existsSync(filePath)) return {};
   const value: unknown = JSON.parse(readFileSync(filePath, "utf8"));
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -178,7 +178,11 @@ function run(
 }
 
 class AppleContainer {
-  constructor(readonly id: string) {}
+  readonly id: string;
+
+  constructor(id: string) {
+    this.id = id;
+  }
 
   exec(args: string[], options: ExecOptions = {}): Promise<ExecResult> {
     const execArgs = ["exec"];
