@@ -27,7 +27,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: google
           model: gemini-3.5-flash
-          token: ${{ secrets.GEMINI_AP_KEY }}
+          token: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             Check if the documentation is up to date with the latest code changes.
             Review README.md and inline code comments.
