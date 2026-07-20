@@ -31,5 +31,6 @@ jobs:
           prompt: |
             Check if the documentation is up to date with the latest code changes.
             Review README.md and inline code comments.
+            Additionally, review if any installation docs are inline with the most recent git tag.
             If you find discrepancies, create a pull request with the necessary documentation updates.
           branch_name_template: 'docs/{title}-{number}'
