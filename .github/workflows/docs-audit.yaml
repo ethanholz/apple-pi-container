@@ -26,7 +26,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: opencode
-          model: gemini-3.5-flash
+          model: nemotron-3-ultra-free
           token: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             Check if the documentation is up to date with the latest code changes.
