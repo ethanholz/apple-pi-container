@@ -611,7 +611,10 @@ export default function (pi: ExtensionAPI) {
     );
   }
 
-  async function resolveImage(imageOverride?: string): Promise<string> {
+  async function resolveImage(
+    ctx?: ExtensionContext,
+    imageOverride?: string,
+  ): Promise<string> {
     const explicitImage =
       imageOverride ||
       (pi.getFlag("apple-container-image") as string | undefined);
@@ -623,6 +626,13 @@ export default function (pi: ExtensionAPI) {
       .update(`${localCwd}\0${configuredDockerfile}`)
       .digest("hex")
       .slice(0, 12)}`;
+    ctx?.ui.setStatus(
+      "apple-container",
+      ctx.ui.theme.fg(
+        "accent",
+        `${DISPLAY_NAME}: building (${path.basename(dockerfile)})`,
+      ),
+    );
     await run("container", [
       "build",
       "--file",
@@ -647,13 +657,13 @@ export default function (pi: ExtensionAPI) {
   ): Promise<AppleContainer> {
     if (process.platform !== "darwin")
       throw new Error("Apple Container requires macOS");
-    image = await resolveImage(imageOverride);
-    ctx?.ui.setStatus(
-      "apple-container",
-      ctx.ui.theme.fg("accent", `${DISPLAY_NAME}: starting (${image})`),
-    );
     const id = `pi-${randomUUID().slice(0, 12)}`;
     try {
+      image = await resolveImage(ctx, imageOverride);
+      ctx?.ui.setStatus(
+        "apple-container",
+        ctx.ui.theme.fg("accent", `${DISPLAY_NAME}: starting (${image})`),
+      );
       const skillsDir = path.join(homedir(), ".pi", "agent", "skills");
       const args = [
         "run",
