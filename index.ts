@@ -138,6 +138,19 @@ export function readConfig(filePath: string): AppleContainerConfig {
   };
 }
 
+export function dockerfileImageTag(
+  projectRoot: string,
+  dockerfile: string,
+): string {
+  // ponytail: context files are not hashed; hash the full context if stale COPY results matter.
+  const digest = createHash("sha256")
+    .update(`${projectRoot}\0${dockerfile}\0`)
+    .update(readFileSync(dockerfile))
+    .digest("hex")
+    .slice(0, 12);
+  return `apple-pi-container-${digest}`;
+}
+
 function run(
   command: string,
   args: string[],
@@ -622,10 +635,11 @@ export default function (pi: ExtensionAPI) {
       return explicitImage || configuredImage;
 
     const dockerfile = configuredDockerfile;
-    const tag = `apple-pi-container-${createHash("sha256")
-      .update(`${localCwd}\0${configuredDockerfile}`)
-      .digest("hex")
-      .slice(0, 12)}`;
+    const tag = dockerfileImageTag(localCwd, dockerfile);
+    const existing = await run("container", ["image", "inspect", tag], {
+      allowFailure: true,
+    });
+    if (existing.exitCode === 0) return tag;
     ctx?.ui.setStatus(
       "apple-container",
       ctx.ui.theme.fg(

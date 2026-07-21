@@ -57,8 +57,9 @@ changing the image used by the next `/apple-container on`:
 
 Set either `image` or `dockerfile`, not both. Dockerfile paths are relative to
 the JSON file containing the setting; builds use the project root as their
-context and run when the container starts. An image passed to the slash command
-or CLI flag skips the configured Dockerfile.
+context. The extension reuses the built image until the Dockerfile contents
+change. Changes to other build-context files do not trigger a rebuild. An image
+passed to the slash command or CLI flag skips the configured Dockerfile.
 
 Project configuration overrides global configuration one setting at a time and
 is only read for trusted projects. A project `volumes` array replaces the global

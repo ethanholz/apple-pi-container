@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, test } from "node:test";
-import { readConfig } from "../index.ts";
+import { dockerfileImageTag, readConfig } from "../index.ts";
 import fs from "node:fs";
 
 const baseExample = `
@@ -101,6 +101,16 @@ describe("configuration", () => {
 describe("configuration precedence", () => {
   test.todo("inherits global volumes when project volumes are absent");
   test.todo("replaces global volumes when project volumes are present");
+});
+
+test("Dockerfile image tags change with Dockerfile contents", () => {
+  const dockerfile = path.join(tmpdir(), `${randomUUID()}.Dockerfile`);
+  fs.writeFileSync(dockerfile, "FROM ubuntu:24.04\n");
+  const first = dockerfileImageTag("/project", dockerfile);
+
+  fs.writeFileSync(dockerfile, "FROM ubuntu:24.10\n");
+
+  assert.notEqual(dockerfileImageTag("/project", dockerfile), first);
 });
 
 describe("volume mount arguments", () => {
