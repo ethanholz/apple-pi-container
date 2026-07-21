@@ -7,7 +7,7 @@
 // Requires Apple Container: https://github.com/apple/container
 
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -59,6 +59,7 @@ interface ParsedVolumeConfig {
 
 interface AppleContainerConfig {
   image?: string;
+  dockerfile?: string;
   enabled?: boolean;
   volumes?: VolumeConfig[];
 }
@@ -100,9 +101,23 @@ export function readConfig(filePath: string): AppleContainerConfig {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error(`${filePath} must contain a JSON object`);
 
-  const { image, enabled, volumes } = value as Record<string, unknown>;
+  const { image, dockerfile, enabled, volumes } = value as Record<
+    string,
+    unknown
+  >;
   if (image !== undefined && (typeof image !== "string" || !image.trim()))
     throw new Error(`${filePath}: image must be a non-empty string`);
+  if (
+    dockerfile !== undefined &&
+    (typeof dockerfile !== "string" ||
+      !dockerfile.trim() ||
+      path.isAbsolute(dockerfile))
+  )
+    throw new Error(
+      `${filePath}: dockerfile must be relative to the configuration file`,
+    );
+  if (image !== undefined && dockerfile !== undefined)
+    throw new Error(`${filePath}: image and dockerfile cannot both be set`);
   if (enabled !== undefined && typeof enabled !== "boolean")
     throw new Error(`${filePath}: enabled must be a boolean`);
   if (
@@ -114,6 +129,7 @@ export function readConfig(filePath: string): AppleContainerConfig {
     );
   return {
     image: typeof image === "string" ? image : undefined,
+    ...(typeof dockerfile === "string" ? { dockerfile } : {}),
     enabled: typeof enabled === "boolean" ? enabled : undefined,
     volumes: (volumes as ParsedVolumeConfig[] | undefined)?.map((volume) => ({
       ...volume,
@@ -582,6 +598,7 @@ export default function (pi: ExtensionAPI) {
   let starting: Promise<AppleContainer> | undefined;
   let shellPath = "/bin/sh";
   let configuredImage = DEFAULT_IMAGE;
+  let configuredDockerfile: string | undefined;
   let configuredVolumes: VolumeConfig[] = [];
   let image = DEFAULT_IMAGE;
   let enabled = DEFAULT_ENABLED;
@@ -589,8 +606,32 @@ export default function (pi: ExtensionAPI) {
   function defaultImage(): string {
     return (
       (pi.getFlag("apple-container-image") as string | undefined) ||
+      configuredDockerfile ||
       configuredImage
     );
+  }
+
+  async function resolveImage(imageOverride?: string): Promise<string> {
+    const explicitImage =
+      imageOverride ||
+      (pi.getFlag("apple-container-image") as string | undefined);
+    if (explicitImage || !configuredDockerfile)
+      return explicitImage || configuredImage;
+
+    const dockerfile = configuredDockerfile;
+    const tag = `apple-pi-container-${createHash("sha256")
+      .update(`${localCwd}\0${configuredDockerfile}`)
+      .digest("hex")
+      .slice(0, 12)}`;
+    await run("container", [
+      "build",
+      "--file",
+      dockerfile,
+      "--tag",
+      tag,
+      localCwd,
+    ]);
+    return tag;
   }
 
   function showDisabledStatus(ctx: ExtensionContext): void {
@@ -606,7 +647,7 @@ export default function (pi: ExtensionAPI) {
   ): Promise<AppleContainer> {
     if (process.platform !== "darwin")
       throw new Error("Apple Container requires macOS");
-    image = imageOverride || defaultImage();
+    image = await resolveImage(imageOverride);
     ctx?.ui.setStatus(
       "apple-container",
       ctx.ui.theme.fg("accent", `${DISPLAY_NAME}: starting (${image})`),
@@ -686,14 +727,29 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on("session_start", async (_event, ctx) => {
-    const globalConfig = readConfig(
-      path.join(homedir(), ".pi", "agent", CONFIG_FILE),
+    const globalConfigPath = path.join(
+      homedir(),
+      ".pi",
+      "agent",
+      CONFIG_FILE,
     );
+    const projectConfigPath = path.join(
+      ctx.cwd,
+      CONFIG_DIR_NAME,
+      CONFIG_FILE,
+    );
+    const globalConfig = readConfig(globalConfigPath);
     const projectConfig = ctx.isProjectTrusted()
-      ? readConfig(path.join(ctx.cwd, CONFIG_DIR_NAME, CONFIG_FILE))
+      ? readConfig(projectConfigPath)
       : {};
-    configuredImage =
-      projectConfig.image ?? globalConfig.image ?? DEFAULT_IMAGE;
+    const [imageConfig, imageConfigPath] =
+      projectConfig.image || projectConfig.dockerfile
+        ? [projectConfig, projectConfigPath]
+        : [globalConfig, globalConfigPath];
+    configuredImage = imageConfig.image ?? DEFAULT_IMAGE;
+    configuredDockerfile = imageConfig.dockerfile
+      ? path.resolve(path.dirname(imageConfigPath), imageConfig.dockerfile)
+      : undefined;
     configuredVolumes = projectConfig.volumes ?? globalConfig.volumes ?? [];
     enabled = projectConfig.enabled ?? globalConfig.enabled ?? DEFAULT_ENABLED;
     if (enabled) await ensureContainer(ctx);

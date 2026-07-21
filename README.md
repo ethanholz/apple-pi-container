@@ -28,7 +28,7 @@ Configuration is optional. Create either of these files:
 
 ```json
 {
-  "image": "ubuntu:24.04",
+  "dockerfile": "../Dockerfile",
   "enabled": true,
   "volumes": [
     {
@@ -42,6 +42,7 @@ Configuration is optional. Create either of these files:
 | Setting | Type | Code default | Description |
 |---------|------|--------------|-------------|
 | `image` | string | `docker.io/library/ubuntu:24.04` | Image used when starting the container |
+| `dockerfile` | string | none | Dockerfile path relative to the configuration file |
 | `enabled` | boolean | `false` | Start container routing when the session launches |
 | `volumes` | array | `[]` | Named volumes to mount in the container |
 
@@ -54,14 +55,19 @@ changing the image used by the next `/apple-container on`:
 }
 ```
 
+Set either `image` or `dockerfile`, not both. Dockerfile paths are relative to
+the JSON file containing the setting; builds use the project root as their
+context and run when the container starts. An image passed to the slash command
+or CLI flag skips the configured Dockerfile.
+
 Project configuration overrides global configuration one setting at a time and
 is only read for trusted projects. A project `volumes` array replaces the global
 array rather than merging with it. Image precedence is:
 
 1. Image passed to `/apple-container on <image>`
 2. `--apple-container-image` CLI flag
-3. Project JSON configuration
-4. Global JSON configuration
+3. Project `dockerfile` or `image` configuration
+4. Global `dockerfile` or `image` configuration
 5. Code default
 
 Slash commands only change the current session; they never modify configuration
@@ -97,5 +103,6 @@ The extension only mounts configured volumes; it does not manage their lifecycle
 ## TODOs
 - [x] Add better toggle UX via Pi slash command
 - [x] Make project configuration easier in `.pi` directory
+- [x] Add support for Dockerfiles in configuration to build custom images for a project
 - [ ] Support devcontainers
 - [x] Make using project local dependency caching easier for Linux guest

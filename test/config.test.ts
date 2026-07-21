@@ -59,6 +59,27 @@ describe("configuration", () => {
       ],
     });
   });
+  test("reads a config-relative Dockerfile", () => {
+    const filePath = path.join(tmpdir(), `${randomUUID()}.json`);
+    fs.writeFileSync(filePath, '{"dockerfile":"../Dockerfile"}');
+
+    assert.equal(readConfig(filePath).dockerfile, "../Dockerfile");
+  });
+  test("rejects absolute Dockerfile paths", () => {
+    const filePath = path.join(tmpdir(), `${randomUUID()}.json`);
+    fs.writeFileSync(filePath, '{"dockerfile":"/tmp/Dockerfile"}');
+
+    assert.throws(() => readConfig(filePath), /relative to the configuration/);
+  });
+  test("rejects configuring both an image and Dockerfile", () => {
+    const filePath = path.join(tmpdir(), `${randomUUID()}.json`);
+    fs.writeFileSync(
+      filePath,
+      '{"image":"ubuntu:24.04","dockerfile":"Dockerfile"}',
+    );
+
+    assert.throws(() => readConfig(filePath), /cannot both be set/);
+  });
   test("accepts writable and read-only named volumes", () => {
     const filePath = path.join(tmpdir(), `${randomUUID()}.json`);
     fs.writeFileSync(filePath, volumeExample);
