@@ -582,7 +582,6 @@ function createContainerBashOps(
     exec: async (command, cwd, options) => {
       const result = await container.exec([shellPath, "-lc", command], {
         cwd: toGuestPath(localCwd, cwd),
-        env: options.env,
         onData: options.onData,
         signal: options.signal,
         timeout: options.timeout,
