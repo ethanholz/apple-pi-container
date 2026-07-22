@@ -8,7 +8,7 @@ Configuration of `pi` should happen on the host system. File manipulation should
 
 ## Installation
 ```sh
-pi install gi:github.com/ethanholz/apple-pi-container@v0.1.1
+pi install gi:github.com/ethanholz/apple-pi-container@v0.2.0
 ```
 
 ## Usage
