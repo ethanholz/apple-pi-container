@@ -44,7 +44,7 @@ Configuration is optional. Create either of these files:
 | `image` | string | `docker.io/library/ubuntu:24.04` | Image used when starting the container |
 | `dockerfile` | string | none | Dockerfile path relative to the configuration file |
 | `enabled` | boolean | `false` | Start container routing when the session launches |
-| `volumes` | array | `[]` | Named volumes to mount in the container |
+| `volumes` | array | `[]` | Named volumes to mount in the container (each volume defaults to read-write; set `readonly: true` for read-only) |
 
 All settings are optional. For example, this keeps routing disabled while
 changing the image used by the next `/apple-container on`:
@@ -100,6 +100,14 @@ container volume create my-project-pixi
 ```
 
 The extension only mounts configured volumes; it does not manage their lifecycle.
+Volumes default to read-write; set `"readonly": true` to mount read-only.
+
+### Pi skills directory
+
+If `~/.pi/agent/skills` exists on the host, it is automatically mounted into
+the container at the same path as a read-only bind mount. This makes your
+configured Pi skills available inside the container without additional
+configuration.
 
 ## TODOs
 - [x] Add better toggle UX via Pi slash command
