@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 24
 
-      - uses: shaftoe/pi-coding-agent-action@v2
+      - uses: shaftoe/pi-coding-agent-action@v2.26.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: opencode
