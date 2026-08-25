@@ -95,6 +95,10 @@ type ExecOptions = {
 
 type ExecResult = { stdout: Buffer; stderr: Buffer; exitCode: number | null };
 
+export function isContainerSystemStoppedError(output: string): boolean {
+  return output.includes("XPC connection error: Connection invalid");
+}
+
 export function readConfig(filePath: string): AppleContainerConfig {
   if (!existsSync(filePath)) return {};
   const value: unknown = JSON.parse(readFileSync(filePath, "utf8"));
@@ -151,7 +155,7 @@ export function dockerfileImageTag(
   return `apple-pi-container-${digest}`;
 }
 
-function run(
+function runOnce(
   command: string,
   args: string[],
   options: ExecOptions = {},
@@ -198,21 +202,41 @@ function run(
           stderr: Buffer.concat(stderr),
           exitCode,
         };
-        if (exitCode !== 0 && !options.allowFailure) {
-          const message =
-            result.stderr.toString().trim() || result.stdout.toString().trim();
-          return reject(
-            new Error(
-              `${command} exited with ${exitCode}${message ? `: ${message}` : ""}`,
-            ),
-          );
-        }
         resolve(result);
       }),
     );
     if (options.input !== undefined) child.stdin.end(options.input);
     else child.stdin.end();
   });
+}
+
+async function run(
+  command: string,
+  args: string[],
+  options: ExecOptions = {},
+): Promise<ExecResult> {
+  let result = await runOnce(command, args, options);
+  const output = `${result.stderr}\n${result.stdout}`;
+  if (
+    command === "container" &&
+    args.join(" ") !== "system start" &&
+    isContainerSystemStoppedError(output)
+  ) {
+    const start = await runOnce("container", ["system", "start"], {
+      signal: options.signal,
+      timeout: options.timeout,
+    });
+    if (start.exitCode !== 0) result = start;
+    else result = await runOnce(command, args, options);
+  }
+  if (result.exitCode !== 0 && !options.allowFailure) {
+    const message =
+      result.stderr.toString().trim() || result.stdout.toString().trim();
+    throw new Error(
+      `${command} exited with ${result.exitCode}${message ? `: ${message}` : ""}`,
+    );
+  }
+  return result;
 }
 
 class AppleContainer {

@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, test } from "node:test";
-import { dockerfileImageTag, readConfig } from "../index.ts";
+import {
+  dockerfileImageTag,
+  isContainerSystemStoppedError,
+  readConfig,
+} from "../index.ts";
 import fs from "node:fs";
 
 const baseExample = `
@@ -111,6 +115,15 @@ test("Dockerfile image tags change with Dockerfile contents", () => {
   fs.writeFileSync(dockerfile, "FROM ubuntu:24.10\n");
 
   assert.notEqual(dockerfileImageTag("/project", dockerfile), first);
+});
+
+test("recognizes the stopped container system error", () => {
+  assert.equal(
+    isContainerSystemStoppedError(`Error: interrupted: "XPC connection error: Connection invalid"
+Ensure container system service has been started with \`container system start\`.`),
+    true,
+  );
+  assert.equal(isContainerSystemStoppedError("Error: image not found"), false);
 });
 
 describe("volume mount arguments", () => {
