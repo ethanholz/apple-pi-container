@@ -2,7 +2,7 @@
 //
 // Usage:
 //   cd /path/to/project
-//   pi -e /Users/ethan/apple-container-pi-extension --apple-container-image ubuntu:24.04
+//   pi -e /path/to/apple-container-pi-extension --apple-container-image ubuntu:24.04
 //
 // Requires Apple Container: https://github.com/apple/container
 
