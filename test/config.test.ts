@@ -4,9 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, test } from "node:test";
 import {
+  configuredVolumeMount,
   dockerfileImageTag,
   isContainerSystemStoppedError,
   readConfig,
+  selectVolumes,
 } from "../index.ts";
 import fs from "node:fs";
 
@@ -40,6 +42,16 @@ const volumeExample = `
   ]
 }
 `;
+
+function configWithVolumes(volumes: unknown) {
+  const filePath = path.join(tmpdir(), `${randomUUID()}.json`);
+  fs.writeFileSync(filePath, JSON.stringify({ volumes }));
+  try {
+    return readConfig(filePath);
+  } finally {
+    fs.unlinkSync(filePath);
+  }
+}
 
 describe("configuration", () => {
   test("returns an empty configuration when the file does not exist", () => {
@@ -96,15 +108,53 @@ describe("configuration", () => {
       { source: "my-other-pixi", target: "/workspace/other", readonly: false },
     ]);
   });
-  test.todo("rejects volume entries without a source");
-  test.todo("rejects volume entries with a relative target");
-  test.todo("rejects commas in volume sources and targets");
-  test.todo("rejects a non-boolean readonly setting");
+  test("rejects volume entries without a source", () => {
+    assert.throws(
+      () => configWithVolumes([{ target: "/workspace/data" }]),
+      /volumes must contain a source/,
+    );
+  });
+  test("rejects volume entries with a relative target", () => {
+    assert.throws(
+      () => configWithVolumes([{ source: "data", target: "workspace/data" }]),
+      /volumes must contain a source/,
+    );
+  });
+  test("rejects commas in volume sources and targets", () => {
+    for (const volume of [
+      { source: "data,other", target: "/workspace/data" },
+      { source: "data", target: "/workspace/data,other" },
+    ]) {
+      assert.throws(
+        () => configWithVolumes([volume]),
+        /volumes must contain a source/,
+      );
+    }
+  });
+  test("rejects a non-boolean readonly setting", () => {
+    assert.throws(
+      () =>
+        configWithVolumes([
+          { source: "data", target: "/workspace/data", readonly: "true" },
+        ]),
+      /optional boolean readonly/,
+    );
+  });
 });
 
 describe("configuration precedence", () => {
-  test.todo("inherits global volumes when project volumes are absent");
-  test.todo("replaces global volumes when project volumes are present");
+  const global = configWithVolumes([{ source: "global", target: "/data" }]);
+
+  test("inherits global volumes when project volumes are absent", () => {
+    assert.deepEqual(selectVolumes(global, {}), global.volumes);
+  });
+  test("replaces global volumes when project volumes are present", () => {
+    const project = configWithVolumes([
+      { source: "project", target: "/workspace/data" },
+    ]);
+    assert.deepEqual(selectVolumes(global, project), project.volumes);
+    assert.deepEqual(selectVolumes(global, configWithVolumes([])), []);
+  });
 });
 
 test("Dockerfile image tags change with Dockerfile contents", () => {
@@ -127,6 +177,24 @@ Ensure container system service has been started with \`container system start\`
 });
 
 describe("volume mount arguments", () => {
-  test.todo("serializes a writable named volume");
-  test.todo("serializes a read-only named volume");
+  test("serializes a writable named volume", () => {
+    const volume = configWithVolumes([
+      { source: "data", target: "/workspace/data" },
+    ]).volumes?.[0];
+    assert.ok(volume);
+    assert.equal(
+      configuredVolumeMount(volume),
+      "type=volume,source=data,target=/workspace/data",
+    );
+  });
+  test("serializes a read-only named volume", () => {
+    const volume = configWithVolumes([
+      { source: "data", target: "/workspace/data", readonly: true },
+    ]).volumes?.[0];
+    assert.ok(volume);
+    assert.equal(
+      configuredVolumeMount(volume),
+      "type=volume,source=data,target=/workspace/data,readonly",
+    );
+  });
 });

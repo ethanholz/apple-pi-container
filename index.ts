@@ -142,6 +142,17 @@ export function readConfig(filePath: string): AppleContainerConfig {
   };
 }
 
+export function configuredVolumeMount(volume: VolumeConfig): string {
+  return `type=volume,source=${volume.source},target=${volume.target}${volume.readonly ? ",readonly" : ""}`;
+}
+
+export function selectVolumes(
+  globalConfig: AppleContainerConfig,
+  projectConfig: AppleContainerConfig,
+): VolumeConfig[] {
+  return projectConfig.volumes ?? globalConfig.volumes ?? [];
+}
+
 export function dockerfileImageTag(
   projectRoot: string,
   dockerfile: string,
@@ -717,10 +728,7 @@ export default function (pi: ExtensionAPI) {
         );
       }
       for (const volume of configuredVolumes) {
-        args.push(
-          "--mount",
-          `type=volume,source=${volume.source},target=${volume.target}${volume.readonly ? ",readonly" : ""}`,
-        );
+        args.push("--mount", configuredVolumeMount(volume));
       }
       args.push("--workdir", GUEST_WORKSPACE, image, "sleep", "infinity");
       await run("container", args);
@@ -797,7 +805,7 @@ export default function (pi: ExtensionAPI) {
     configuredDockerfile = imageConfig.dockerfile
       ? path.resolve(path.dirname(imageConfigPath), imageConfig.dockerfile)
       : undefined;
-    configuredVolumes = projectConfig.volumes ?? globalConfig.volumes ?? [];
+    configuredVolumes = selectVolumes(globalConfig, projectConfig);
     enabled = projectConfig.enabled ?? globalConfig.enabled ?? DEFAULT_ENABLED;
     if (enabled) await ensureContainer(ctx);
     else showDisabledStatus(ctx);

@@ -8,6 +8,7 @@
 	"scripts": {
 		"typecheck": "tsc",
 		"test": "node --test test/*.test.ts",
+		"test:smoke": "node --test test/container.smoke.ts",
 		"check": "npm run typecheck && npm test"
 	},
 	"pi": {

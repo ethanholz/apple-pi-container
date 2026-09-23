@@ -109,6 +109,17 @@ the container at the same path as a read-only bind mount. This makes your
 configured Pi skills available inside the container without additional
 configuration.
 
+## Testing
+
+Run `npm run check` for the regular tests. On macOS with Apple Container
+installed, run `npm run test:smoke` to check real container routing without
+using a model. The smoke test uses `ubuntu:24.04` and creates and removes a
+temporary container. The GitHub Actions smoke workflow runs after pushes to `main`
+(or manually) on a self-hosted, physical Apple silicon Mac with macOS 26 or
+newer and Apple Container installed. Add the `apple-container` runner label;
+GitHub-hosted macOS runners cannot run the required nested VM. Fork PRs are
+not run on the self-hosted machine.
+
 ## TODOs
 - [x] Add better toggle UX via Pi slash command
 - [x] Make project configuration easier in `.pi` directory
