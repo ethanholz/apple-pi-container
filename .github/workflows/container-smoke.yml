@@ -17,11 +17,11 @@ jobs:
       # Borrowed from https://github.com/joncrain/macos-pkg-install/blob/main/action.yml
       - name: Download macOS container
         run: |
-          /usr/bin/curl -L https://github.com/apple/container/releases/download/1.4.1/container-1.4.1-installer-signed.pkg -o ${{github.action_path}}/installer.pkg
+          /usr/bin/curl -L https://github.com/apple/container/releases/download/1.4.1/container-1.4.1-installer-signed.pkg -o installer.pkg
         shell: bash
       - name: Install macOS container
         run: |
-          sudo /usr/sbin/installer -pkg ${{ github.action_path }}/installer.pkg -target /
+          sudo /usr/sbin/installer -pkg installer.pkg -target /
         shell: bash
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
