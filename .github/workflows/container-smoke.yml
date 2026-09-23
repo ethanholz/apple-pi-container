@@ -28,5 +28,5 @@ jobs:
           node-version: 22.19.0
           cache: npm
       - run: npm ci
-      - run: container system start
+      - run: container system start --enable-kernel-install
       - run: npm run test:smoke
