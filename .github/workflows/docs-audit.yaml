@@ -25,8 +25,8 @@ jobs:
       - uses: shaftoe/pi-coding-agent-action@0698813906fb1f23425bd742510e3080d624840d # v2.27.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          provider: opencode
-          model: nemotron-3.5-lightning-free
-          token: ${{ secrets.GEMINI_API_KEY }}
+          provider: openrouter
+          model: nvidia/nemotron-3.5-lightning:free
+          token: ${{ secrets.OPENROUTER_API_KEY }}
           prompt: Use the docs-review skill to audit and update the documentation.
           branch_name_template: 'docs/{title}-{number}'
