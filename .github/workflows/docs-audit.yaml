@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 24
 
-      - uses: shaftoe/pi-coding-agent-action@8faf601af3a91f4526c8fc0f4b50cea0ef67b5d4 # v2.29.0
+      - uses: shaftoe/pi-coding-agent-action@babaa1a909dd7021abc538be6f20c1757b3b8fb7 # v2.29.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: openrouter
