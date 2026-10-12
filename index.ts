@@ -646,6 +646,7 @@ export default function (pi: ExtensionAPI) {
   let shellPath = "/bin/sh";
   let configuredImage = DEFAULT_IMAGE;
   let configuredDockerfile: string | undefined;
+  let configuredDockerfilePath: string | undefined;
   let configuredVolumes: VolumeConfig[] = [];
   let image = DEFAULT_IMAGE;
   let enabled = DEFAULT_ENABLED;
@@ -665,10 +666,10 @@ export default function (pi: ExtensionAPI) {
     const explicitImage =
       imageOverride ||
       (pi.getFlag("apple-container-image") as string | undefined);
-    if (explicitImage || !configuredDockerfile)
+    if (explicitImage || !configuredDockerfilePath)
       return explicitImage || configuredImage;
 
-    const dockerfile = configuredDockerfile;
+    const dockerfile = configuredDockerfilePath;
     const tag = dockerfileImageTag(localCwd, dockerfile);
     const existing = await run("container", ["image", "inspect", tag], {
       allowFailure: true,
@@ -678,7 +679,7 @@ export default function (pi: ExtensionAPI) {
       "apple-container",
       ctx.ui.theme.fg(
         "accent",
-        `${DISPLAY_NAME}: building (${path.basename(dockerfile)})`,
+        `${DISPLAY_NAME}: building (${configuredDockerfile})`,
       ),
     );
     await run("container", [
@@ -802,7 +803,8 @@ export default function (pi: ExtensionAPI) {
         ? [projectConfig, projectConfigPath]
         : [globalConfig, globalConfigPath];
     configuredImage = imageConfig.image ?? DEFAULT_IMAGE;
-    configuredDockerfile = imageConfig.dockerfile
+    configuredDockerfile = imageConfig.dockerfile;
+    configuredDockerfilePath = imageConfig.dockerfile
       ? path.resolve(path.dirname(imageConfigPath), imageConfig.dockerfile)
       : undefined;
     configuredVolumes = selectVolumes(globalConfig, projectConfig);
