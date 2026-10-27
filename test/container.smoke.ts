@@ -6,6 +6,7 @@ import { test } from "node:test";
 import type {
   ExtensionAPI,
   ExtensionCommandContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import appleContainer from "../index.ts";
@@ -36,7 +37,7 @@ function loadExtension(project: string) {
       notify() {},
       theme: { fg: (_color: string, text: string) => text },
     },
-  } as unknown as ExtensionCommandContext;
+  } as unknown as ExtensionCommandContext & ExtensionToolContext;
 
   // The extension captures process.cwd() when it registers its tools.
   const previousCwd = process.cwd();
